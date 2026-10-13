@@ -4,66 +4,33 @@ export function rangePrompt(format: IdFormat = "xml"): string {
     const compact = format === "compact"
     const message = compact ? "@4@" : "mNNNN"
     const block = compact ? "@b1@" : "bN"
-    const placeholder = compact ? "@b1@" : "(bN)"
-    return `Collapse a range in the conversation into a detailed summary.
+    const example = compact ? '["@b1@", "@42@", "@b3@"]' : '["b1", "m0042", "b3"]'
+    return `Replace selected conversation messages and/or existing compressed blocks with a new, smaller standalone summary.
 
-THE SUMMARY
-Your summary must be EXHAUSTIVE. Capture file paths, function signatures, decisions made, constraints discovered, key findings... EVERYTHING that maintains context integrity. This is not a brief note - it is an authoritative record so faithful that the original conversation adds no value.
+SELECTION
+- ${message} identifies a visible raw message; ${block} identifies an active compressed block.
+- Use sources for exact selections, including nonadjacent messages and blocks, e.g. ${example}.
+- Alternatively, startId/endId selects the inclusive visible range between two IDs.
+- Select whole messages: a message ID covers all its tool calls and results.
+- Only use IDs visible in the current context. Never select the current tool-call message or unfinished tools.
+${compact ? "- Copy the whole marker, including both @ characters; omit priority labels." : "- Copy the ID from its metadata tag."}
+- Each source may appear only once across the batch. Selections must not overlap, including block ancestry.
+- Unselected messages stay in place. The replacement is inserted at the last selected source.
 
-USER INTENT FIDELITY
-When the compressed range includes user messages, preserve the user's intent with extra care. Do not change scope, constraints, priorities, acceptance criteria, or requested outcomes.
-Directly quote user messages when they are short enough to include safely. Direct quotes are preferred when they best preserve exact meaning.
+TRUE RECOMPRESSION
+Read selected old blocks and WRITE THEIR RELEVANT CONTENT ANEW in the new summary. Merge duplicates and shorten obsolete detail. Old summaries are NOT automatically inserted.
+Do not use block placeholders. A reference alone is not a summary. The new text must stand on its own without access to inactive blocks.
+Earlier block versions and ancestry are retained in plugin storage. That archive is not automatically visible to you; preserve everything needed to continue.
 
-Yet be LEAN. Strip away the noise: failed attempts that led nowhere, verbose tool outputs, back-and-forth exploration. What remains should be pure signal - golden nuggets of detail that preserve full understanding with zero ambiguity.
-
-COMPRESSED BLOCK PLACEHOLDERS
-When the selected range includes previously compressed blocks, use this exact placeholder format when referencing one:
-
-- \`${placeholder}\`
-
-Compressed block sections in context are clearly marked with a header:
-
-- \`[Compressed conversation section]\`
-
-${compact ? "Compressed block IDs look like `@b1@`, distinct from raw message IDs like `@4@`." : "Compressed block IDs always use the `bN` form (never `mNNNN`) and are represented in the same XML metadata tag format."}
-
-Rules:
-
-- Include every required block placeholder exactly once.
-- Do not invent placeholders for blocks outside the selected range.
-- Treat \`${placeholder}\` placeholders as RESERVED TOKENS. Do not emit \`${placeholder}\` text anywhere except intentional placeholders.
-- If you need to mention a block in prose, use plain text like \`compressed ${compact ? "block 1" : "bN"}\` (not as a placeholder).
-- Preflight check before finalizing: the set of \`${placeholder}\` placeholders in your summary must exactly match the required set, with no duplicates.
-
-These placeholders are semantic references. They will be replaced with the full stored compressed block content when the tool processes your output.
-
-FLOW PRESERVATION WITH PLACEHOLDERS
-When you use compressed block placeholders, write the surrounding summary text so it still reads correctly AFTER placeholder expansion.
-
-- Treat each placeholder as a stand-in for a full conversation segment, not as a short label.
-- Ensure transitions before and after each placeholder preserve chronology and causality.
-- Do not write text that depends on the placeholder staying literal (for example, "as noted in \`${compact ? "@b2@" : "(b2)"}\`").
-- Your final meaning must be coherent once each placeholder is replaced with its full compressed block content.
-
-BOUNDARY IDS
-You specify boundaries by ID using the injected IDs visible in the conversation:
-
-- \`${message}\` IDs identify raw messages
-- \`${block}\` IDs identify previously compressed blocks
-
-${compact ? "Each message has an ID like `@4@`. Copy the whole marker, including both `@` characters, into `startId` and `endId`." : "Each message has an ID inside XML metadata tags like `<dcp-message-id>...</dcp-message-id>`."}
-The same ID tag appears in every tool output of the message it belongs to — each unique ID identifies one complete message.
-Treat these tags as boundary metadata only, not as tool result content.
-
-Rules:
-
-- Pick \`startId\` and \`endId\` directly from injected IDs in context.
-- IDs must exist in the current visible context.
-- \`startId\` must appear before \`endId\`.
-- Do not invent IDs. Use only IDs that are present in context.
+SUMMARY FIDELITY
+Preserve user intent, scope, constraints, corrections, acceptance criteria, decisions and reasons, important paths/APIs, verified results, unresolved questions, and next actions.
+Clearly distinguish proposed/planned work from implemented and verified work. Preserve chronology and causality, especially when combining nonadjacent sources; do not imply that intervening unselected messages were summarized.
+Keep precise details needed for future decisions; consolidate completed exploration and remove repetition. The final summary including automatically preserved content must be smaller than the selected visible inputs, or the entire batch is rejected.
+Important outputs from subagents must be included in the summary.
+Protected tool outputs, protected tags, and protected user messages are carried separately by the plugin. Do not duplicate automatically retained payloads verbatim in your summary.
 
 BATCHING
-When multiple independent ranges are ready and their boundaries do not overlap, include all of them as separate entries in the \`content\` array of a single tool call. Each entry should have its own \`startId\`, \`endId\`, and \`summary\`.
+Use one content entry per independent replacement block in the content array. All entries are validated before the batch is applied.
 `
 }
 

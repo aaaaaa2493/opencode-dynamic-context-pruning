@@ -219,12 +219,8 @@ test("compress message mode batches individual message summaries", async () => {
     assert.equal(blocks[0]?.topic, "Code path note")
     assert.equal(blocks[1]?.startId, "m0003")
     assert.equal(blocks[1]?.endId, "m0003")
-    assert.match(
-        blocks[1]?.summary || "",
-        /The following protected tools were used in this conversation as well:/,
-    )
-    assert.match(blocks[1]?.summary || "", /Tool: task/)
-    assert.match(blocks[1]?.summary || "", /task output body/)
+    assert.match(blocks[1]?.summary || "", /task-backed follow-up/)
+    assert.doesNotMatch(blocks[1]?.summary || "", /Tool: task|task output body/)
 })
 
 test("compress message mode appends protected prompt info", async () => {
@@ -401,9 +397,15 @@ test("compress message mode does not partially apply when preparation fails", as
     const config = buildConfig()
     config.experimental.allowSubAgents = true
 
-    state.subAgentResultCache.get = (() => {
-        throw new Error("cache failure")
-    }) as typeof state.subAgentResultCache.get
+    const protectedPart = rawMessages[2]!.parts.find((part) => part.type === "tool")!
+    assert.equal(protectedPart.type, "tool")
+    if (protectedPart.type === "tool") {
+        protectedPart.tool = "skill"
+        Object.defineProperty(protectedPart.state, "output", {
+            get() { throw new Error("protected output failure") },
+        })
+    }
+    config.compress.protectedTools = ["skill"]
 
     const tool = createCompressMessageTool({
         client: {
@@ -447,7 +449,7 @@ test("compress message mode does not partially apply when preparation fails", as
                 messageID: "msg-compress-message-prepare-fail",
             },
         ),
-        /cache failure/,
+        /protected output failure/,
     )
 
     assert.equal(state.prune.messages.blocksById.size, 0)

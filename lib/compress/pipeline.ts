@@ -4,8 +4,8 @@ import { saveSessionState } from "../state/persistence"
 import { assignMessageRefs } from "../message-ids"
 import { isIgnoredUserMessage } from "../messages/query"
 import { deduplicate, purgeErrors } from "../strategies"
-import { getCurrentParams, getCurrentTokenUsage } from "../token-utils"
-import { sendCompressNotification } from "../ui/notification"
+import { createCompressNotification } from "../ui/notification"
+import { showCompressionReport } from "../ui/compression-report"
 import type { ToolContext } from "./types"
 import { buildSearchContext, fetchSessionMessages } from "./search"
 import type { SearchContext } from "./types"
@@ -20,6 +20,7 @@ interface RunContext {
     }): Promise<void>
     metadata(input: { title: string }): void
     sessionID: string
+    messageID?: string
 }
 
 export interface NotificationEntry {
@@ -84,7 +85,7 @@ export async function finalizeSession(
     rawMessages: WithParts[],
     entries: NotificationEntry[],
     batchTopic: string | undefined,
-): Promise<void> {
+): Promise<string | undefined> {
     if (ctx.state.manualMode === "compress-pending") {
         ctx.state.manualMode = false
         await refreshManualMode(
@@ -97,20 +98,36 @@ export async function finalizeSession(
     applyPendingCompressionDurations(ctx.state)
     await saveSessionState(ctx.state, ctx.logger)
 
-    const params = getCurrentParams(ctx.state, rawMessages, ctx.logger)
     const sessionMessageIds = rawMessages
         .filter((msg) => !isIgnoredUserMessage(msg))
         .map((msg) => msg.info.id)
 
-    await sendCompressNotification(
+    const notification = await createCompressNotification(
         ctx.client,
         ctx.logger,
         ctx.config,
         ctx.state,
-        toolCtx.sessionID,
         entries,
         batchTopic,
         sessionMessageIds,
-        params,
     )
+    if (!notification) return
+
+    const message = rawMessages.find((message) => message.info.id === toolCtx.messageID)
+    const callID = ctx.state.prune.messages.blocksById.get(entries[0]?.blockId ?? -1)?.compressCallId
+    const calls = message?.parts.filter((part) => part.type === "tool" && part.tool === "compress") ?? []
+    const toolPart = calls.find((part) => part.type === "tool" && part.callID === callID)
+        ?? (!callID && calls.length === 1 ? calls[0] : undefined)
+    // V2 exposes no public part-update API. A report in its tool result remains
+    // visible in host history and is stripped from subsequent provider context.
+    if (ctx.state.idFormat === "compact") return notification
+    try {
+        if (message?.info.role !== "assistant" || !toolPart || !toolCtx.messageID) {
+            throw new Error("Cannot locate the assistant compression tool part")
+        }
+        await showCompressionReport(ctx.client, toolCtx.sessionID, toolCtx.messageID, toolPart.id, notification)
+    } catch (error) {
+        ctx.logger.warn("Could not display compression report; keeping it in tool output", { error: String(error) })
+        return notification
+    }
 }

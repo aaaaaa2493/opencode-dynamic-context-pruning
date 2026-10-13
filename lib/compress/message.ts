@@ -1,4 +1,5 @@
 import { tool } from "@opencode-ai/plugin"
+import { appendCompressionNotification } from "./notification-output"
 import type { ToolContext } from "./types"
 import { countTokens } from "../token-utils"
 import { messageFormat } from "../prompts/extensions/tool"
@@ -144,9 +145,9 @@ export function createCompressMessageTool(ctx: ToolContext): ReturnType<typeof t
                 })
             }
 
-            await finalizeSession(ctx, toolCtx, rawMessages, notifications, input.topic)
+            const notification = await finalizeSession(ctx, toolCtx, rawMessages, notifications, input.topic)
 
-            return formatResult(plans.length, skippedIssues, skippedCount)
+            return appendCompressionNotification(formatResult(plans.length, skippedIssues, skippedCount), notification)
         },
     })
 }

@@ -1,5 +1,6 @@
 import type {
     CompressionBlock,
+    ProtectedContentEntry,
     PruneMessagesState,
     PrunedMessageEntry,
     SessionState,
@@ -31,6 +32,20 @@ interface PersistedPruneMessagesState {
     activeByAnchorMessageId: Record<string, number>
     nextBlockId: number
     nextRunId: number
+}
+
+function restoreProtectedEntries(value: unknown): ProtectedContentEntry[] | undefined {
+    if (!Array.isArray(value)) return undefined
+    const entries: ProtectedContentEntry[] = []
+    for (const entry of value) {
+        if (!entry || typeof entry.text !== "string" || typeof entry.messageId !== "string"
+            || typeof entry.createdAt !== "number" || !Number.isFinite(entry.createdAt)
+            || !Number.isInteger(entry.partIndex)
+            || (entry.tool !== undefined && typeof entry.tool !== "string")) return undefined
+        entries.push({ text: entry.text, tool: entry.tool, messageId: entry.messageId,
+            createdAt: entry.createdAt, partIndex: entry.partIndex })
+    }
+    return entries
 }
 
 export function serializePruneMessagesState(
@@ -243,6 +258,10 @@ export function loadPruneMessagesState(
                         ? block.deactivatedByBlockId
                         : undefined,
                 summary: typeof block.summary === "string" ? block.summary : "",
+                sourceRefs: Array.isArray(block.sourceRefs) ? toStringArray(block.sourceRefs) : undefined,
+                protectedContent: Array.isArray(block.protectedContent) ? toStringArray(block.protectedContent) : undefined,
+                protectedEntries: restoreProtectedEntries(block.protectedEntries),
+                archived: block.archived === true,
             })
         }
     }
@@ -331,7 +350,15 @@ export function getActiveSummaryTokenUsage(state: SessionState): number {
 export function resetOnCompaction(state: SessionState): void {
     state.toolParameters.clear()
     state.prune.tools = new Map<string, number>()
+    const previous = state.prune.messages
+    for (const block of previous.blocksById.values()) {
+        block.active = false
+        block.archived = true
+    }
     state.prune.messages = createPruneMessagesState()
+    state.prune.messages.blocksById = previous.blocksById
+    state.prune.messages.nextBlockId = previous.nextBlockId
+    state.prune.messages.nextRunId = previous.nextRunId
     state.messageIds = {
         byRawId: new Map<string, string>(),
         byRef: new Map<string, string>(),

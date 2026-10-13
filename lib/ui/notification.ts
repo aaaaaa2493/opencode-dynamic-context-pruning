@@ -8,7 +8,6 @@ import {
 } from "./utils"
 import { ToolParameterEntry } from "../state"
 import { PluginConfig } from "../config"
-import { getActiveSummaryTokenUsage } from "../state/utils"
 
 export type PruneReason = "completion" | "noise" | "extraction"
 export const PRUNE_REASON_LABELS: Record<PruneReason, string> = {
@@ -169,23 +168,28 @@ function formatCompressionMetrics(removedTokens: number, summaryTokens: number):
     return metrics.join(", ")
 }
 
-export async function sendCompressNotification(
+function getConsumedSummaryTokens(state: SessionState, blockId: number): number {
+    const block = state.prune.messages.blocksById.get(blockId)
+    return [...new Set(block?.consumedBlockIds ?? [])].reduce((total, consumedBlockId) => {
+        return total + (state.prune.messages.blocksById.get(consumedBlockId)?.summaryTokens ?? 0)
+    }, 0)
+}
+
+export async function createCompressNotification(
     client: any,
     logger: Logger,
     config: PluginConfig,
     state: SessionState,
-    sessionId: string,
     entries: CompressionNotificationEntry[],
     batchTopic: string | undefined,
     sessionMessageIds: string[],
-    params: any,
-): Promise<boolean> {
+): Promise<string | undefined> {
     if (config.pruneNotification === "off") {
-        return false
+        return
     }
 
     if (entries.length === 0) {
-        return false
+        return
     }
 
     let message: string
@@ -198,23 +202,28 @@ export async function sendCompressNotification(
         if (!compressionBlock) {
             logger.error("Compression block missing for notification", {
                 compressionId: entry.blockId,
-                sessionId,
+                sessionId: state.sessionId,
             })
             return total
         }
 
-        return total + compressionBlock.compressedTokens
+        return total + compressionBlock.compressedTokens + getConsumedSummaryTokens(state, entry.blockId)
     }, 0)
 
     const newlyCompressedMessageIds: string[] = []
     const newlyCompressedToolIds: string[] = []
     const seenMessageIds = new Set<string>()
     const seenToolIds = new Set<string>()
+    const compressedSummaryIds = new Set<number>()
 
     for (const entry of entries) {
         const compressionBlock = state.prune.messages.blocksById.get(entry.blockId)
         if (!compressionBlock) {
             continue
+        }
+
+        for (const blockId of compressionBlock.consumedBlockIds) {
+            compressedSummaryIds.add(blockId)
         }
 
         for (const messageId of compressionBlock.directMessageIds) {
@@ -241,9 +250,14 @@ export async function sendCompressNotification(
               "(unknown topic)")
             : "(unknown topic)")
 
-    const totalActiveSummaryTkns = getActiveSummaryTokenUsage(state)
-    const totalGross = state.stats.totalPruneTokens + state.stats.pruneTokenCounter
-    const notificationHeader = `▣ DCP | ${formatCompressionMetrics(totalGross, totalActiveSummaryTkns)}`
+    let totalSummaryTokens = 0
+    let totalRemovedSummaryTokens = 0
+    for (const block of state.prune.messages.blocksById.values()) {
+        totalSummaryTokens += block.summaryTokens
+        totalRemovedSummaryTokens += getConsumedSummaryTokens(state, block.blockId)
+    }
+    const totalGross = state.stats.totalPruneTokens + state.stats.pruneTokenCounter + totalRemovedSummaryTokens
+    const notificationHeader = `▣ DCP | ${formatCompressionMetrics(totalGross, totalSummaryTokens)}`
 
     if (config.pruneNotification === "minimal") {
         message = `${notificationHeader} — ${compressionLabel}`
@@ -265,11 +279,9 @@ export async function sendCompressNotification(
         message += `\n\n${progressBar}`
         message += `\n▣ ${compressionLabel} ${formatCompressionMetrics(compressedTokens, summaryTokens)}`
         message += `\n→ Topic: ${topic}`
-        message += `\n→ Items: ${newlyCompressedMessageIds.length} messages`
+        message += `\n→ Items: ${newlyCompressedMessageIds.length} messages compressed, ${compressedSummaryIds.size} summaries compressed`
         if (newlyCompressedToolIds.length > 0) {
-            message += ` and ${newlyCompressedToolIds.length} tools compressed`
-        } else {
-            message += ` compressed`
+            message += `, ${newlyCompressedToolIds.length} tools compressed`
         }
         if (config.compress.showCompression) {
             message += `\n→ Compression (~${summaryTokensStr}): ${summary}`
@@ -298,11 +310,10 @@ export async function sendCompressNotification(
                 duration: 5000,
             },
         })
-        return true
+        return
     }
 
-    await sendIgnoredMessage(client, sessionId, message, params, logger)
-    return true
+    return message
 }
 
 export async function sendIgnoredMessage(

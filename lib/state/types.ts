@@ -32,6 +32,14 @@ export interface PrunedMessageEntry {
 
 export type CompressionMode = "range" | "message"
 
+export interface ProtectedContentEntry {
+    text: string
+    tool?: string
+    messageId: string
+    createdAt: number
+    partIndex: number
+}
+
 export interface CompressionBlock {
     blockId: number
     runId: number
@@ -59,6 +67,13 @@ export interface CompressionBlock {
     deactivatedAt?: number
     deactivatedByBlockId?: number
     summary: string
+    /** Exact visible sources; ancestry is represented by consumedBlockIds. */
+    sourceRefs?: string[]
+    protectedContent?: string[]
+    /** Protected payloads with their original message/part chronology. */
+    protectedEntries?: ProtectedContentEntry[]
+    /** Retained versions from before native compaction; never reactivated. */
+    archived?: boolean
 }
 
 export interface PruneMessagesState {

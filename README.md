@@ -1,5 +1,10 @@
 # Dynamic Context Pruning Plugin
 
+This checkout includes the **hierarchical fork**: genuine summary rewriting,
+nonadjacent source selection, retained block versions, and compression only after
+DCP reminders or explicit user requests. See [HIERARCHICAL.md](HIERARCHICAL.md)
+for its contract, protections, persistence, verification and local installation.
+
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/dansmolsky)
 [![npm version](https://img.shields.io/npm/v/@tarquinen/opencode-dcp.svg)](https://www.npmjs.com/package/@tarquinen/opencode-dcp)
 
@@ -36,14 +41,14 @@ DCP reduces context size through a compress tool and automatic cleanup. Your ses
 
 ### Compress
 
-Compress is a tool exposed to your model that replaces closed, stale conversation content with high-fidelity technical summaries. You can think of this as a much smarter version of Opencode's compaction process. Instead of triggering statically when your session reaches its maximum context and on the entire coding session, Compress allows the model to pick when to activate based on task completion, and to only compress the specific messages that are no longer needed verbatim.
+Compress replaces selected conversation content with high-fidelity technical summaries. In this fork, the model is instructed to use it only after a DCP compression reminder or an explicit user/manual request. Task completion helps select what to summarize after a trigger; it does not independently trigger compression.
 
 DCP supports two compression modes:
 
-- `range` mode compresses contiguous spans of conversation into one or more summaries.
+- `range` mode rewrites selected raw messages and active summary blocks, using exact `sources` (including nonadjacent sources) or inclusive range boundaries.
 - `message` mode (experimental) compresses individual raw messages independently, letting the model manage context much more surgically.
 
-In `range` mode, when a new compression overlaps an earlier one, the earlier summary is nested inside the new one so information is preserved through layers of compression rather than diluted away. In both modes, protected tool outputs (such as subagents and skills) and protected file patterns are kept in compression summaries, ensuring that the most important information is never lost. You can also enable `protectUserMessages` to preserve your messages verbatim during compression, though note that large prompts (e.g. copy-pasting log files in the prompt) will then never be compressed away.
+In `range` mode, selected old summaries are genuinely rewritten into a smaller standalone summary. Earlier versions remain archived for restoration; block placeholders are not expanded. Protected skills, the latest todo snapshot, configured tools and file-pattern protections are retained separately. Subagent findings must be summarized by the model. You can enable `protectUserMessages` to retain your messages verbatim. See [HIERARCHICAL.md](HIERARCHICAL.md) for the complete selection and protection rules.
 
 ### Deduplication
 
@@ -77,8 +82,7 @@ Each level overrides the previous, so project settings take priority over global
     "$schema": "https://raw.githubusercontent.com/Opencode-DCP/opencode-dynamic-context-pruning/master/dcp.schema.json",
     // Enable or disable the plugin
     "enabled": true,
-    // Automatically update npm-installed DCP when a newer npm latest is available.
-    // Version-locked plugin specs are not updated.
+    // Retained upstream setting; the cache updater is disabled in this fork.
     "autoUpdate": true,
     // Enable debug logging to ~/.config/opencode/logs/dcp/
     "debug": false,
@@ -118,7 +122,7 @@ Each level overrides the previous, so project settings take priority over global
     "protectedFilePatterns": [],
     // Unified context compression tool and behavior settings
     "compress": {
-        // Compression mode: "range" (compress spans into block summaries)
+        // Compression mode: "range" (hierarchical source/range rewriting)
         // or experimental "message" (compress individual raw messages)
         "mode": "range",
         // Permission mode: "allow" (no prompt), "ask" (prompt), "deny" (tool not registered)
@@ -218,7 +222,7 @@ By default, these tools are always protected from pruning:
 
 The `protectedTools` arrays in `commands` and `strategies` add to this default list.
 
-For the `compress` tool, `compress.protectedTools` ensures specific tool outputs are appended to the compressed summary. By default it includes `task`, `skill`, `todowrite`, and `todoread`.
+For `compress`, the default protected tools are `skill`, `todowrite`, and `todoread`. Repeated skills deduplicate and each replacement keeps only the latest todo snapshot. `task` and V2 `subagent` results are summarized by the model rather than automatically appended, including under old explicit or wildcard settings.
 
 ## Impact on Prompt Caching
 

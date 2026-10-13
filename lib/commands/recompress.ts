@@ -158,7 +158,7 @@ export async function handleRecompressCommand(ctx: RecompressCommandContext): Pr
         return
     }
 
-    if (target.blocks.some((block) => !availableMessageIds.has(block.compressMessageId))) {
+    if (target.blocks.some((block) => block.archived || !availableMessageIds.has(block.compressMessageId))) {
         await sendIgnoredMessage(
             client,
             sessionId,
@@ -179,6 +179,27 @@ export async function handleRecompressCommand(ctx: RecompressCommandContext): Pr
 
     const activeMessagesBefore = snapshotActiveMessages(messagesState)
     const activeBlockIdsBefore = new Set(messagesState.activeBlockIds)
+
+    const descendants = new Set(target.blocks.map((block) => block.blockId))
+    const queue = [...descendants]
+    for (let index = 0; index < queue.length; index++) {
+        const block = messagesState.blocksById.get(queue[index]!)
+        for (const id of block?.consumedBlockIds ?? []) {
+            if (descendants.has(id)) continue
+            descendants.add(id)
+            queue.push(id)
+        }
+    }
+    const targetMessages = new Set(target.blocks.flatMap((block) => block.effectiveMessageIds))
+    const conflict = [...messagesState.activeBlockIds].find((id) =>
+        !descendants.has(id) && messagesState.blocksById.get(id)?.effectiveMessageIds.some((messageId) => targetMessages.has(messageId)),
+    )
+    if (conflict !== undefined) {
+        await sendIgnoredMessage(client, sessionId,
+            `Compression ${target.displayId} overlaps active compression ${conflict}. Restore that compression first.`,
+            params, logger)
+        return
+    }
 
     for (const block of target.blocks) {
         block.deactivatedByUser = false

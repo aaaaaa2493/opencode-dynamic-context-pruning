@@ -8,6 +8,7 @@ import * as fs from "fs/promises"
 import { existsSync } from "fs"
 import { homedir } from "os"
 import { join } from "path"
+import { randomUUID } from "crypto"
 import type { CompressionBlock, PrunedMessageEntry, SessionState, SessionStats } from "./types"
 import type { Logger } from "../logger"
 import { serializePruneMessagesState } from "./utils"
@@ -60,16 +61,33 @@ function getSessionFilePath(sessionId: string): string {
     return join(STORAGE_DIR, `${sessionId}.json`)
 }
 
+const pendingWrites = new Map<string, Promise<void>>()
+
 async function writePersistedSessionState(
     sessionId: string,
     state: PersistedSessionState,
     logger: Logger,
 ): Promise<void> {
-    await ensureStorageDir()
-
     const filePath = getSessionFilePath(sessionId)
+    // Snapshot before yielding so queued saves keep their invocation order.
     const content = JSON.stringify(state, null, 2)
-    await fs.writeFile(filePath, content, "utf-8")
+    const previous = pendingWrites.get(sessionId) ?? Promise.resolve()
+    const pending = previous.catch(() => {}).then(async () => {
+        await ensureStorageDir()
+        const temporaryPath = `${filePath}.${randomUUID()}.tmp`
+        try {
+            await fs.writeFile(temporaryPath, content, { encoding: "utf-8", mode: 0o600 })
+            await fs.rename(temporaryPath, filePath)
+        } finally {
+            await fs.rm(temporaryPath, { force: true }).catch(() => {})
+        }
+    })
+    pendingWrites.set(sessionId, pending)
+    try {
+        await pending
+    } finally {
+        if (pendingWrites.get(sessionId) === pending) pendingWrites.delete(sessionId)
+    }
 
     logger.info("Saved session state to disk", {
         sessionId,
@@ -81,6 +99,7 @@ export async function saveSessionState(
     sessionState: SessionState,
     logger: Logger,
     sessionName?: string,
+    strict = false,
 ): Promise<void> {
     try {
         if (!sessionState.sessionId) {
@@ -109,6 +128,7 @@ export async function saveSessionState(
             sessionId: sessionState.sessionId,
             error: error?.message,
         })
+        if (strict) throw error
     }
 }
 
@@ -117,6 +137,7 @@ export async function loadSessionState(
     logger: Logger,
 ): Promise<PersistedSessionState | null> {
     try {
+        await pendingWrites.get(sessionId)?.catch(() => {})
         const filePath = getSessionFilePath(sessionId)
 
         if (!existsSync(filePath)) {

@@ -23,6 +23,7 @@ export const syncCompressionBlocks = (
     }
 
     const messageIds = new Set(messages.map((msg) => msg.info.id))
+    const messageById = new Map(messages.map((message) => [message.info.id, message]))
     const previousActiveBlockIds = new Set<number>(
         Array.from(messagesState.blocksById.values())
             .filter((block) => block.active)
@@ -35,8 +36,18 @@ export const syncCompressionBlocks = (
     const now = Date.now()
     const missingOriginBlockIds: number[] = []
     const orderedBlocks = Array.from(messagesState.blocksById.values()).sort(sortBlocksByCreation)
+    const previousDeactivations = new Map(orderedBlocks.map((block) => [block.blockId, {
+        at: block.deactivatedAt,
+        by: block.deactivatedByBlockId,
+    }]))
 
     for (const block of orderedBlocks) {
+        const origin = messageById.get(block.compressMessageId)
+        if (block.archived || (origin && origin.info.time.created < state.lastCompaction)) {
+            block.archived = true
+            block.active = false
+            continue
+        }
         const hasOriginMessage =
             typeof block.compressMessageId === "string" &&
             block.compressMessageId.length > 0 &&
@@ -44,7 +55,7 @@ export const syncCompressionBlocks = (
 
         if (!hasOriginMessage) {
             block.active = false
-            block.deactivatedAt = now
+            block.deactivatedAt ??= now
             block.deactivatedByBlockId = undefined
             missingOriginBlockIds.push(block.blockId)
             continue
@@ -67,7 +78,10 @@ export const syncCompressionBlocks = (
             const consumedBlock = messagesState.blocksById.get(consumedBlockId)
             if (consumedBlock) {
                 consumedBlock.active = false
-                consumedBlock.deactivatedAt = now
+                const previous = previousDeactivations.get(consumedBlockId)
+                consumedBlock.deactivatedAt = previous?.by === block.blockId
+                    ? previous.at ?? now
+                    : now
                 consumedBlock.deactivatedByBlockId = block.blockId
 
                 const mappedBlockId = messagesState.activeByAnchorMessageId.get(

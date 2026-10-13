@@ -1,13 +1,8 @@
-import type { SessionState } from "../state"
+import type { ProtectedContentEntry, SessionState } from "../state"
 import { isIgnoredUserMessage } from "../messages/query"
 import { isToolProtected } from "../protected-patterns"
-import {
-    buildSubagentResultText,
-    getSubAgentId,
-    mergeSubagentResult,
-} from "../subagents/subagent-results"
-import { fetchSessionMessages } from "./search"
 import type { SearchContext, SelectionResolution } from "./types"
+import { compareProtectedEntries, deduplicateProtectedEntries } from "./protected-dedup"
 
 export function appendProtectedUserMessages(
     summary: string,
@@ -103,17 +98,16 @@ export function extractProtectedPromptInfo(text: string): string[] {
     return protectedTexts
 }
 
-export async function appendProtectedTools(
-    client: any,
+export async function collectProtectedToolEntries(
+    _client: any,
     state: SessionState,
-    allowSubAgents: boolean,
-    summary: string,
+    _allowSubAgents: boolean,
     selection: SelectionResolution,
     searchContext: SearchContext,
     protectedTools: string[],
     protectedFilePatterns: string[] = [],
-): Promise<string> {
-    const protectedOutputs: string[] = []
+): Promise<ProtectedContentEntry[]> {
+    const protectedOutputs: ProtectedContentEntry[] = []
 
     for (const messageId of selection.messageIds) {
         const existingCompressionEntry = state.prune.messages.byMessageId.get(messageId)
@@ -125,8 +119,10 @@ export async function appendProtectedTools(
         if (!message) continue
 
         const parts = Array.isArray(message.parts) ? message.parts : []
-        for (const part of parts) {
+        for (const [partIndex, part] of parts.entries()) {
             if (part.type === "tool" && part.callID) {
+                // V1 task and V2 subagent results belong in the rewritten narrative.
+                if (part.tool === "task" || part.tool === "subagent") continue
                 if (
                     isToolProtected(
                         part.tool,
@@ -136,7 +132,6 @@ export async function appendProtectedTools(
                         "metadata" in part.state ? part.state.metadata : undefined,
                     )
                 ) {
-                    const title = `Tool: ${part.tool}`
                     let output = ""
 
                     if (part.state?.status === "completed" && part.state?.output) {
@@ -146,58 +141,44 @@ export async function appendProtectedTools(
                                 : JSON.stringify(part.state.output)
                     }
 
-                    if (
-                        allowSubAgents &&
-                        (part.tool === "task" || part.tool === "subagent") &&
-                        part.state?.status === "completed" &&
-                        typeof part.state?.output === "string"
-                    ) {
-                        const cachedSubAgentResult = state.subAgentResultCache.get(part.callID)
-
-                        if (cachedSubAgentResult !== undefined) {
-                            if (cachedSubAgentResult) {
-                                output = mergeSubagentResult(
-                                    part.state.output,
-                                    cachedSubAgentResult,
-                                )
-                            }
-                        } else {
-                            const subAgentSessionId = getSubAgentId(part)
-                            if (subAgentSessionId) {
-                                let subAgentResultText = ""
-                                try {
-                                    const subAgentMessages = await fetchSessionMessages(
-                                        client,
-                                        subAgentSessionId,
-                                    )
-                                    subAgentResultText = buildSubagentResultText(subAgentMessages)
-                                } catch {
-                                    subAgentResultText = ""
-                                }
-
-                                if (subAgentResultText) {
-                                    state.subAgentResultCache.set(part.callID, subAgentResultText)
-                                    output = mergeSubagentResult(
-                                        part.state.output,
-                                        subAgentResultText,
-                                    )
-                                }
-                            }
-                        }
-                    }
-
                     if (output) {
-                        protectedOutputs.push(`\n### ${title}\n${output}`)
+                        protectedOutputs.push({
+                            text: `\n\nThe following protected tools were used in this conversation as well:\n### Tool: ${part.tool}\n${output}`,
+                            tool: part.tool,
+                            messageId,
+                            createdAt: message.info.time.created,
+                            partIndex,
+                        })
                     }
                 }
             }
         }
     }
 
-    if (protectedOutputs.length === 0) {
-        return summary
-    }
+    return protectedOutputs
+}
 
-    const heading = "\n\nThe following protected tools were used in this conversation as well:"
-    return summary + heading + protectedOutputs.join("")
+export function selectLatestTodo(entries: ProtectedContentEntry[], context: SearchContext): ProtectedContentEntry[] {
+    const isTodo = (entry: ProtectedContentEntry) => entry.tool === "todowrite" || entry.tool === "todoread"
+    let latest: ProtectedContentEntry | undefined
+    for (const entry of entries) {
+        if (isTodo(entry) && (!latest || compareProtectedEntries(entry, latest, context) > 0)) latest = entry
+    }
+    return entries.filter((entry) => !isTodo(entry) || entry === latest)
+}
+
+export async function appendProtectedTools(
+    client: any,
+    state: SessionState,
+    allowSubAgents: boolean,
+    summary: string,
+    selection: SelectionResolution,
+    searchContext: SearchContext,
+    protectedTools: string[],
+    protectedFilePatterns: string[] = [],
+): Promise<string> {
+    const entries = await collectProtectedToolEntries(client, state, allowSubAgents, selection, searchContext,
+        protectedTools, protectedFilePatterns)
+    return summary + deduplicateProtectedEntries(selectLatestTodo(entries, searchContext), searchContext)
+        .map((entry) => entry.text).join("")
 }

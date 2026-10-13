@@ -8,6 +8,19 @@ type Part = WithParts["parts"][number]
 
 const emptyUsage = { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } }
 
+// V2's native media representation changed from inline data to an Asset.
+// This projection is bookkeeping only; restore() retains the original native part.
+type MediaProjection =
+    | { readonly mediaType: string; readonly data: string | Uint8Array }
+    | { readonly media: { readonly mediaType: string; readonly source: { readonly type: string; readonly url?: string } } }
+
+function mediaFile(part: MediaProjection): { mime: string; url: string } {
+    if ("media" in part) {
+        return { mime: part.media.mediaType, url: part.media.source.url ?? "" }
+    }
+    return { mime: part.mediaType, url: typeof part.data === "string" ? part.data : "" }
+}
+
 function info(id: string, role: string, session: Session, entry?: History[number]) {
     const model = entry?.type === "assistant" ? entry.model : session.model
     return {
@@ -117,8 +130,7 @@ export function project(native: Message[], entries: History, session: Session) {
                     ...base,
                     id: `${message.id}:${index}`,
                     type: "file",
-                    mime: part.mediaType,
-                    url: typeof part.data === "string" ? part.data : "",
+                    ...mediaFile(part),
                 }
             if (part.type === "tool-call") {
                 const result = results.get(part.id)

@@ -154,10 +154,10 @@ test("prompt store exposes bundled range-mode compress prompt", () => {
     try {
         const runtimePrompts = fixture.store.getRuntimePrompts()
 
-        assert.match(runtimePrompts.compressRange, /Collapse a range in the conversation/i)
-        assert.match(runtimePrompts.compressRange, /COMPRESSED BLOCK PLACEHOLDERS/)
+        assert.match(runtimePrompts.compressRange, /Replace selected conversation messages/i)
+        assert.match(runtimePrompts.compressRange, /TRUE RECOMPRESSION/)
         assert.match(runtimePrompts.compressRange, /BATCHING/)
-        assert.match(runtimePrompts.compressRange, /content` array/)
+        assert.match(runtimePrompts.compressRange, /content array/)
     } finally {
         fixture.cleanup()
     }

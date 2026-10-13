@@ -17,7 +17,7 @@ import {
     createTextCompleteHandler,
 } from "./lib/hooks"
 import { configureClientAuth, isSecureMode } from "./lib/auth"
-import { startAutoUpdate } from "./lib/update"
+import { createExclusiveRunner } from "./lib/exclusive"
 import { setup } from "./lib/v2"
 
 const server: Plugin = (async (ctx) => {
@@ -44,7 +44,8 @@ const server: Plugin = (async (ctx) => {
         strategies: config.strategies,
     })
 
-    startAutoUpdate(ctx, config.autoUpdate)
+    // Keep this fork under user control rather than replacing it with upstream npm.
+    const exclusive = createExclusiveRunner()
 
     const compressToolContext = {
         client: ctx.client,
@@ -53,38 +54,39 @@ const server: Plugin = (async (ctx) => {
         config,
         prompts,
     }
+    const compressTool = config.compress.mode === "message"
+        ? createCompressMessageTool(compressToolContext)
+        : createCompressRangeTool(compressToolContext)
+    compressTool.execute = exclusive(compressTool.execute)
 
     return {
-        "experimental.chat.system.transform": createSystemPromptHandler(
+        "experimental.chat.system.transform": exclusive(createSystemPromptHandler(
             state,
             logger,
             config,
             prompts,
-        ),
-        "experimental.chat.messages.transform": createChatMessageTransformHandler(
+        )),
+        "experimental.chat.messages.transform": exclusive(createChatMessageTransformHandler(
             ctx.client,
             state,
             logger,
             config,
             prompts,
             hostPermissions,
-        ) as any,
+        )) as any,
         "experimental.text.complete": createTextCompleteHandler(),
-        "command.execute.before": createCommandExecuteHandler(
+        "command.execute.before": exclusive(createCommandExecuteHandler(
             ctx.client,
             state,
             logger,
             config,
             ctx.directory,
             hostPermissions,
-        ),
-        event: createEventHandler(state, logger),
+        )),
+        event: exclusive(createEventHandler(state, logger)),
         tool: {
             ...(config.compress.permission !== "deny" && {
-                compress:
-                    config.compress.mode === "message"
-                        ? createCompressMessageTool(compressToolContext)
-                        : createCompressRangeTool(compressToolContext),
+                compress: compressTool,
             }),
         },
         config: async (opencodeConfig) => {

@@ -12,11 +12,12 @@ THE FORMAT OF COMPRESS
 \`\`\`
 {
   topic: string,           // Short label (3-5 words) - e.g., "Auth System Exploration"
-  content: [               // One or more ranges to compress
+   content: [               // Independent replacements, each producing one new block
     {
-      startId: string,     // Boundary ID at range start: ${ids}
-      endId: string,       // Boundary ID at range end: ${ids}
-      summary: string      // Complete technical summary replacing all content in range
+      sources?: string[], // Exact visible sources: ${ids}; may be nonadjacent
+      startId?: string,   // Inclusive range start; omit when using sources
+      endId?: string,     // Inclusive range end; omit when using sources
+      summary: string     // New standalone summary; rewrite old blocks without placeholders
     }
   ]
 }

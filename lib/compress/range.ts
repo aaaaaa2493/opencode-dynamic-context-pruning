@@ -1,4 +1,5 @@
 import { tool } from "@opencode-ai/plugin"
+import { appendCompressionNotification } from "./notification-output"
 import type { ToolContext } from "./types"
 import { countTokens } from "../token-utils"
 import { rangeFormat } from "../prompts/extensions/tool"
@@ -195,9 +196,9 @@ export function createCompressRangeTool(ctx: ToolContext): ReturnType<typeof too
                 })
             }
 
-            await finalizeSession(ctx, toolCtx, rawMessages, notifications, input.topic)
+            const notification = await finalizeSession(ctx, toolCtx, rawMessages, notifications, input.topic)
 
-            return `Compressed ${totalCompressedMessages} messages into ${COMPRESSED_BLOCK_HEADER}.`
+            return appendCompressionNotification(`Compressed ${totalCompressedMessages} messages into ${COMPRESSED_BLOCK_HEADER}.`, notification)
         },
     })
 }

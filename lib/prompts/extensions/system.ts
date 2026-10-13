@@ -19,6 +19,12 @@ All subsequent messages in the session will have IDs.
 `
 
 export function buildProtectedToolsExtension(protectedTools: string[]): string {
+    return protectedToolsExtension(protectedTools.filter((tool) => tool !== "task" && tool !== "subagent")) + `
+Important outputs from subagents must be included in the summary.
+`
+}
+
+function protectedToolsExtension(protectedTools: string[]): string {
     if (protectedTools.length === 0) {
         return ""
     }

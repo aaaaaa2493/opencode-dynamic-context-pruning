@@ -6,6 +6,8 @@ import { createSyntheticUserMessage, replaceBlockIdsWithBlocked } from "./utils"
 import { getLastUserMessage } from "./query"
 import type { UserMessage } from "@opencode-ai/sdk/v2"
 import { formatBlockRef } from "../message-ids"
+import { pruneCompressionInputs } from "./compress-inputs"
+import { isCompressionReport } from "../ui/compression-report"
 
 const PRUNED_TOOL_OUTPUT_REPLACEMENT =
     "[Output removed to save context - information superseded or no longer needed]"
@@ -19,7 +21,11 @@ export const prune = (
     messages: WithParts[],
     summaryBase?: WithParts,
 ): void => {
+    for (const message of messages) {
+        message.parts = message.parts.filter((part) => !isCompressionReport(part))
+    }
     filterCompressedRanges(state, logger, config, messages, summaryBase)
+    pruneCompressionInputs(state, messages)
     // pruneFullTool(state, logger, messages)
     pruneToolOutputs(state, logger, messages)
     pruneToolInputs(state, logger, messages)

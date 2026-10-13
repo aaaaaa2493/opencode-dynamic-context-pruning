@@ -33,6 +33,7 @@
         "sandbox": "node scripts/sandbox.mjs",
         "typecheck": "tsc --noEmit && npm run typecheck --workspace=tests/logger",
         "test": "node --import tsx --test tests/*.test.ts && npm test --workspace=tests/logger",
+        "test:hierarchical": "node --import tsx --test tests/hierarchical.test.ts tests/hierarchical-hosts.test.ts",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
         "dcp": "tsx scripts/print.ts"
@@ -48,12 +49,12 @@
     ],
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/Opencode-DCP/opencode-dynamic-context-pruning.git"
+        "url": "git+https://github.com/aaaaaa2493/opencode-dynamic-context-pruning.git"
     },
     "bugs": {
-        "url": "https://github.com/Opencode-DCP/opencode-dynamic-context-pruning/issues"
+        "url": "https://github.com/aaaaaa2493/opencode-dynamic-context-pruning/issues"
     },
-    "homepage": "https://github.com/Opencode-DCP/opencode-dynamic-context-pruning#readme",
+    "homepage": "https://github.com/aaaaaa2493/opencode-dynamic-context-pruning#readme",
     "author": "tarquinen",
     "license": "AGPL-3.0-or-later",
     "peerDependencies": {
@@ -87,6 +88,7 @@
         "server.js",
         "tui.tsx",
         "README.md",
+        "HIERARCHICAL.md",
         "LICENSE"
     ]
 }
