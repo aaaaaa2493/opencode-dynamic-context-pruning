@@ -8,14 +8,18 @@ import { fileURLToPath, pathToFileURL } from "node:url"
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const archive = join(root, "release/opencode-dcp-hierarchical.tgz")
 
-test("release archive contains a loadable hierarchical server and both host entrypoints", async () => {
+test("release archive provides a build-free Git package and both host entrypoints", async () => {
     // Keep extraction under the checkout to reuse the CI-installed host SDKs.
     const temporary = mkdtempSync(join(root, ".package-test-"))
     try {
         execFileSync("tar", ["-xzf", archive, "-C", temporary])
         const directory = join(temporary, "package")
+        execFileSync(process.execPath, [join(root, "scripts/prepare-package.mjs"), directory])
         const manifest = JSON.parse(readFileSync(join(directory, "package.json"), "utf8"))
         assert.equal(manifest.name, "@aaaaaa2493/opencode-dcp")
+        assert.equal(manifest.scripts, undefined)
+        assert.equal(manifest.devDependencies, undefined)
+        assert.equal(manifest.workspaces, undefined)
         assert.equal(manifest.exports["./server"].import, "./dist/index.js")
         assert.equal(manifest.exports["./tui"].import, "./tui.tsx")
         for (const name of [".", "./server", "./tui"]) {

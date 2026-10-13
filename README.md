@@ -14,7 +14,7 @@ Automatically reduces token usage in OpenCode by managing conversation context.
 
 ## Installation
 
-The fork is distributed as a **prebuilt GitHub release package**. OpenCode installs
+The fork is distributed as a **prebuilt GitHub package**. OpenCode installs
 it and its dependencies automatically. No local checkout or build is needed.
 
 ### OpenCode V1
@@ -24,7 +24,7 @@ Replace the existing DCP entry in both `opencode.jsonc` and `tui.json` with:
 ```jsonc
 {
     "plugin": [
-        "https://github.com/aaaaaa2493/opencode-dynamic-context-pruning/releases/latest/download/opencode-dcp-hierarchical.tgz"
+        "github:aaaaaa2493/opencode-dynamic-context-pruning#v3.2.0"
     ]
 }
 ```
@@ -34,7 +34,7 @@ Preserve other plugin entries. Restart OpenCode after changing the configuration
 ### OpenCode V2
 
 ```bash
-opencode plugin add https://github.com/aaaaaa2493/opencode-dynamic-context-pruning/releases/latest/download/opencode-dcp-hierarchical.tgz
+opencode plugin add github:aaaaaa2493/opencode-dynamic-context-pruning#v3.2.0
 ```
 
 Or add the package to your existing configuration:
@@ -43,7 +43,7 @@ Or add the package to your existing configuration:
 {
     "plugins": [
         {
-            "package": "https://github.com/aaaaaa2493/opencode-dynamic-context-pruning/releases/latest/download/opencode-dcp-hierarchical.tgz"
+            "package": "github:aaaaaa2493/opencode-dynamic-context-pruning#v3.2.0"
         }
     ],
     "permissions": [
@@ -53,10 +53,12 @@ Or add the package to your existing configuration:
 ```
 
 Use `compress.mode: "range"` for hierarchical compression. Existing `dcp.jsonc`
-settings still apply. Each successful master build publishes a package in
+settings still apply. Versions use ordinary tags such as `v3.2.0`, matching the
+package version. These tags contain the ready-to-load distribution. Releases are
+built and tested automatically from `master` and include an archive in
 [Releases](https://github.com/aaaaaa2493/opencode-dynamic-context-pruning/releases).
-Use a release-specific asset URL to pin a version. Local development/build
-instructions remain in [CONTRIBUTING.md](CONTRIBUTING.md).
+To update, replace the version tag in your plugin entry with the desired release.
+Local development/build instructions remain in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Project Status
 

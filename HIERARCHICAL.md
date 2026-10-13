@@ -120,14 +120,14 @@ the host retains them for display. `toast` and `off` keep their existing behavio
 
 ## Install on any computer
 
-Use the prebuilt package from GitHub Releases. OpenCode handles installation and
+Use the prebuilt GitHub package. OpenCode handles installation and
 dependencies; users do not need Git, a checkout, or a manual Node/npm build.
 
 For V1, replace the existing DCP entry in both `opencode.jsonc` and `tui.json`:
 
 ```jsonc
 "plugin": [
-    "https://github.com/aaaaaa2493/opencode-dynamic-context-pruning/releases/latest/download/opencode-dcp-hierarchical.tgz"
+    "github:aaaaaa2493/opencode-dynamic-context-pruning#v3.2.0"
 ]
 ```
 
@@ -137,9 +137,14 @@ Preserve other plugins/settings and restart OpenCode. `compress.mode: "range"`
 selects hierarchical behavior; the existing `dcp.jsonc` configuration still applies.
 
 The Publish workflow builds, tests, verifies and packs every master update before
-publishing a GitHub release. The package has its own name,
+publishing a new package version as an immutable GitHub tag (e.g. `v3.2.0`) and
+release archive. The version tag contains the ready-to-load distribution, without
+development dependencies, workspaces or lifecycle/build scripts. Both hosts support
+this versioned Git package specifier. The package has its own name,
 `@aaaaaa2493/opencode-dcp`. No npm registry login or package build is needed on
-consumer computers. A release-specific asset URL pins a particular build.
+consumer computers. Update the version tag to install a newer release. Publishing
+a new version requires updating `version` in `package.json` and `package-lock.json`;
+an existing release tag is preserved.
 
 ## Local development and verification
 
