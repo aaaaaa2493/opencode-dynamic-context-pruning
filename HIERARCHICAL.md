@@ -157,11 +157,12 @@ npm run check:package
 Hierarchical regressions cover both ID formats, three-generation rewrites, mixed
 selections, protections, restoration, atomic persistence, native compaction,
 historical calls, reports and V1/V2 plugin registration. Tests use temporary
-config/storage and mocked hosts without live accounts. Node 24 can also run the
-TypeScript suites through `tests/register-typescript.mjs`.
+config/storage and mocked hosts without live accounts. The test-only Node 24
+loader in `tests/register-typescript.mjs` handles source TypeScript and the
+host-bundled JSONC parser's ES modules.
 
-For local development, after building replace only the existing DCP plugin entry with this checkout's
-absolute path. For the current V1 setup, use this entry in both
+For local development, after building replace only the existing DCP plugin entry
+with this checkout's absolute path. For the current V1 setup, use this entry in both
 `~/.config/opencode/opencode.jsonc` and `~/.config/opencode/tui.json`:
 
 ```jsonc

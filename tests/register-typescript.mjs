@@ -20,6 +20,15 @@ registerHooks({
         }
     },
     load(url, context, nextLoad) {
+        // The host bundles jsonc-parser's ESM files, whose package lacks type: module.
+        // Source-level host tests need the same module interpretation.
+        if (url.includes("/node_modules/jsonc-parser/lib/esm/") && url.endsWith(".js")) {
+            return {
+                format: "module",
+                shortCircuit: true,
+                source: readFileSync(new URL(url), "utf8"),
+            }
+        }
         if (!url.endsWith(".ts")) return nextLoad(url, context)
         return {
             format: "module",

@@ -25,7 +25,7 @@ This arrangement ensures the project remains Open Source while providing a path 
 
 ## Development Setup
 
-Use Node.js and npm. From your checkout:
+Use Node.js 24 and npm. From your checkout:
 
 ```sh
 npm ci --legacy-peer-deps
