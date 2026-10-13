@@ -1,0 +1,284 @@
+# Dynamic Context Pruning Plugin
+
+This checkout includes the **hierarchical fork**: genuine summary rewriting,
+nonadjacent source selection, retained block versions, and compression only after
+DCP reminders or explicit user requests. See [HIERARCHICAL.md](HIERARCHICAL.md)
+for its contract, protections, persistence, verification and local installation.
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/dansmolsky)
+[![npm version](https://img.shields.io/npm/v/@tarquinen/opencode-dcp.svg)](https://www.npmjs.com/package/@tarquinen/opencode-dcp)
+
+Automatically reduces token usage in OpenCode by managing conversation context.
+
+![DCP in action](assets/images/dcp-demo9.png)
+
+## Installation
+
+The fork is distributed as a **prebuilt GitHub package**. OpenCode installs
+it and its dependencies automatically. No local checkout or build is needed.
+
+### OpenCode V1
+
+Replace the existing DCP entry in both `opencode.jsonc` and `tui.json` with:
+
+```jsonc
+{
+    "plugin": [
+        "github:aaaaaa2493/opencode-dynamic-context-pruning#v3.2.0"
+    ]
+}
+```
+
+Preserve other plugin entries. Restart OpenCode after changing the configuration.
+
+### OpenCode V2
+
+```bash
+opencode plugin add github:aaaaaa2493/opencode-dynamic-context-pruning#v3.2.0
+```
+
+Or add the package to your existing configuration:
+
+```jsonc
+{
+    "plugins": [
+        {
+            "package": "github:aaaaaa2493/opencode-dynamic-context-pruning#v3.2.0"
+        }
+    ],
+    "permissions": [
+        { "action": "compress", "resource": "*", "effect": "allow" }
+    ]
+}
+```
+
+Use `compress.mode: "range"` for hierarchical compression. Existing `dcp.jsonc`
+settings still apply. Versions use ordinary tags such as `v3.2.0`, matching the
+package version. These tags contain the ready-to-load distribution. Releases are
+built and tested automatically from `master` and include an archive in
+[Releases](https://github.com/aaaaaa2493/opencode-dynamic-context-pruning/releases).
+To update, replace the version tag in your plugin entry with the desired release.
+Local development/build instructions remain in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Project Status
+
+Development on DCP has slowed because most new context-management work has moved to [Sleev](https://sleev.ai) and the `sleev` CLI.
+
+Sleev builds on DCP's core ideas with more advanced context management and significantly better performance. It's a local proxy that already supports Claude Code, Codex, OpenCode, Pi, and Hermes, and can be extended to support any harness.
+
+DCP remains available for OpenCode plugin users, but new features are landing in Sleev first. If you are starting fresh, we recommend trying Sleev:
+
+```bash
+npm i -g sleev
+sleev
+```
+
+## How It Works
+
+DCP reduces context size through a compress tool and automatic cleanup. Your session history is never modified — DCP replaces pruned content with placeholders before sending requests to your LLM.
+
+### Compress
+
+Compress replaces selected conversation content with high-fidelity technical summaries. In this fork, the model is instructed to use it only after a DCP compression reminder or an explicit user/manual request. Task completion helps select what to summarize after a trigger; it does not independently trigger compression.
+
+DCP supports two compression modes:
+
+- `range` mode rewrites selected raw messages and active summary blocks, using exact `sources` (including nonadjacent sources) or inclusive range boundaries.
+- `message` mode (experimental) compresses individual raw messages independently, letting the model manage context much more surgically.
+
+In `range` mode, selected old summaries are genuinely rewritten into a smaller standalone summary. Earlier versions remain archived for restoration; block placeholders are not expanded. Protected skills, the latest todo snapshot, configured tools and file-pattern protections are retained separately. Subagent findings must be summarized by the model. You can enable `protectUserMessages` to retain your messages verbatim. See [HIERARCHICAL.md](HIERARCHICAL.md) for the complete selection and protection rules.
+
+### Deduplication
+
+Identifies repeated tool calls (same tool, same arguments) and keeps only the most recent output. Recalculated when the compress tool runs, so prompt cache is only impacted alongside compression.
+
+### Purge Errors
+
+Prunes inputs from errored tool calls after a configurable number of turns. Error messages are preserved; only the potentially large input content is removed. Recalculated on compress tool use.
+
+## Configuration
+
+DCP uses its own config file, searched in order:
+
+1. Global: `~/.config/opencode/dcp.jsonc` (or `dcp.json`), created automatically on first run
+2. Custom config directory: `$OPENCODE_CONFIG_DIR/dcp.jsonc` (or `dcp.json`), if `OPENCODE_CONFIG_DIR` is set
+3. Project: `.opencode/dcp.jsonc` (or `dcp.json`) in your project's `.opencode` directory
+
+Each level overrides the previous, so project settings take priority over global. Restart OpenCode after making config changes.
+
+> [!NOTE]
+> If your model has a smaller context window, lower `compress.minContextLimit` and `compress.maxContextLimit` in your configuration to match the available context.
+
+> [!IMPORTANT]
+> Defaults are applied automatically. Expand this if you want to review or override settings.
+
+<details>
+<summary><strong>Default Configuration</strong> (click to expand)</summary>
+
+```jsonc
+{
+    "$schema": "https://raw.githubusercontent.com/Opencode-DCP/opencode-dynamic-context-pruning/master/dcp.schema.json",
+    // Enable or disable the plugin
+    "enabled": true,
+    // Retained upstream setting; the cache updater is disabled in this fork.
+    "autoUpdate": true,
+    // Enable debug logging to ~/.config/opencode/logs/dcp/
+    "debug": false,
+    // Notification display: "off", "minimal", or "detailed"
+    "pruneNotification": "detailed",
+    // Notification type: "chat" (in-conversation) or "toast" (system toast)
+    "pruneNotificationType": "chat",
+    // Slash commands configuration
+    "commands": {
+        "enabled": true,
+        // Additional tools to protect from pruning via commands (e.g., /dcp sweep)
+        "protectedTools": [],
+    },
+    // Manual mode: disables autonomous context management,
+    // tools only run when explicitly triggered via /dcp commands
+    "manualMode": {
+        "enabled": false,
+        // When true, automatic cleanup (deduplication, purgeErrors)
+        // still runs even in manual mode
+        "automaticStrategies": true,
+    },
+    // Protect from pruning for <turns> message turns past tool invocation
+    "turnProtection": {
+        "enabled": false,
+        "turns": 4,
+    },
+    // Experimental settings
+    "experimental": {
+        // Allow DCP processing in subagent sessions
+        "allowSubAgents": false,
+        // Enable user-editable prompt overrides under dcp-prompts directories
+        // When false (default), prompt override files/directories are ignored
+        "customPrompts": false,
+    },
+    // Protect file operations from pruning via glob patterns
+    // Patterns match tool parameters.filePath (e.g. read/write/edit)
+    "protectedFilePatterns": [],
+    // Unified context compression tool and behavior settings
+    "compress": {
+        // Compression mode: "range" (hierarchical source/range rewriting)
+        // or experimental "message" (compress individual raw messages)
+        "mode": "range",
+        // Permission mode: "allow" (no prompt), "ask" (prompt), "deny" (tool not registered)
+        "permission": "allow",
+        // Show compression content in a chat notification
+        "showCompression": false,
+        // Let active summary tokens extend the effective maxContextLimit
+        "summaryBuffer": true,
+        // Soft upper threshold: above this, DCP keeps injecting strong
+        // compression nudges (based on nudgeFrequency), so compression is
+        // much more likely. Accepts: number or "X%" of model context window.
+        "maxContextLimit": 100000,
+        // Soft lower threshold for reminder nudges: below this, turn/iteration
+        // reminders are off (compression less likely). At/above this, reminders
+        // are on. Accepts: number or "X%" of model context window.
+        "minContextLimit": 50000,
+        // Optional per-model override for maxContextLimit by providerID/modelID.
+        // If present, this wins over the global maxContextLimit.
+        // Accepts: number or "X%".
+        // Example:
+        // "modelMaxLimits": {
+        //     "provider/model": "80%"
+        // },
+        // Optional per-model override for minContextLimit.
+        // If present, this wins over the global minContextLimit.
+        // "modelMinLimits": {
+        //     "provider/model": "25%"
+        // },
+        // How often the context-limit nudge fires (1 = every fetch, 5 = every 5th)
+        "nudgeFrequency": 5,
+        // Start adding compression reminders after this many
+        // messages have happened since the last user message
+        "iterationNudgeThreshold": 15,
+        // Controls how likely compression is after user messages
+        // ("strong" = more likely, "soft" = less likely)
+        "nudgeForce": "soft",
+        // Tool names whose completed outputs are appended to the compression
+        "protectedTools": [],
+        // Preserve text wrapped in <protect>...</protect> when compressed
+        "protectTags": false,
+        // Preserve your messages during compression.
+        // Warning: large copy-pasted prompts will never be compressed away
+        "protectUserMessages": false,
+    },
+    // Automatic pruning strategies
+    "strategies": {
+        // Remove duplicate tool calls (same tool with same arguments)
+        "deduplication": {
+            "enabled": true,
+            // Additional tools to protect from pruning
+            "protectedTools": [],
+        },
+        // Prune tool inputs for errored tools after X turns
+        "purgeErrors": {
+            "enabled": true,
+            // Number of turns before errored tool inputs are pruned
+            "turns": 4,
+            // Additional tools to protect from pruning
+            "protectedTools": [],
+        },
+    },
+}
+```
+
+</details>
+
+### Commands
+
+DCP provides a TUI panel and one prompt-producing slash command:
+
+- `/dcp` — Opens the DCP panel with context, stats, and manual-mode controls.
+- `/dcp-compress [focus]` — Asks the model to run one compression pass. Optional focus text directs what content to compress, following the active `compress.mode`.
+
+### Prompt Overrides
+
+DCP exposes the following editable prompts:
+
+- `system`
+- `compress-range`
+- `compress-message`
+- `context-limit-nudge`
+- `turn-nudge`
+- `iteration-nudge`
+
+This feature is disabled by default. Set `experimental.customPrompts` to `true` in your DCP config to activate it.
+
+When enabled, managed defaults are written to `~/.config/opencode/dcp-prompts/defaults/` as plain-text prompt files. A single `README.md` in that directory explains each prompt and how to create overrides.
+
+To customize behavior, add a file with the same name under an overrides directory and edit it as plain text.
+
+To reset an override, delete the matching file from your overrides directory.
+
+### Protected Tools
+
+By default, these tools are always protected from pruning:
+`task`, `skill`, `todowrite`, `todoread`, `compress`, `batch`, `plan_enter`, `plan_exit`, `write`, `edit`
+
+The `protectedTools` arrays in `commands` and `strategies` add to this default list.
+
+For `compress`, the default protected tools are `skill`, `todowrite`, and `todoread`. Repeated skills deduplicate and each replacement keeps only the latest todo snapshot. `task` and V2 `subagent` results are summarized by the model rather than automatically appended, including under old explicit or wildcard settings.
+
+## Impact on Prompt Caching
+
+LLM providers cache prompts based on exact prefix matching. When DCP prunes content, it changes messages, which invalidates cached prefixes from that point forward.
+
+**Trade-off:** Pruning reduces context size but can increase cache misses. The cost
+balance depends on your conversation, compression frequency, and provider pricing.
+
+**No impact for:**
+
+- **Request-based billing** — Some providers charge per request, not tokens.
+- **Uniform token pricing** — Providers that bill cached and uncached tokens at the same rate.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, local installation,
+and testing with the V1/V2 sandbox.
+
+## License
+
+AGPL-3.0-or-later

@@ -1,0 +1,1 @@
+{"version":3,"file":"tool.d.ts","sourceRoot":"","sources":["../../../../lib/prompts/extensions/tool.ts"],"names":[],"mappings":"AAIA,OAAO,KAAK,EAAE,QAAQ,EAAE,MAAM,mBAAmB,CAAA;AAEjD,wBAAgB,WAAW,CAAC,MAAM,GAAE,QAAgB,GAAG,MAAM,CAkB5D;AAED,wBAAgB,aAAa,CAAC,MAAM,GAAE,QAAgB,GAAG,MAAM,CAoB9D;AAED,eAAO,MAAM,sBAAsB,QAAgB,CAAA;AACnD,eAAO,MAAM,wBAAwB,QAAkB,CAAA"}

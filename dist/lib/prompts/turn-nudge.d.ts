@@ -1,0 +1,2 @@
+export declare const TURN_NUDGE = "<dcp-system-reminder>\nEvaluate the conversation for compressible ranges.\n\nIf any messages are cleanly closed and unlikely to be needed again, use the compress tool on them.\nIf direction has shifted, compress earlier ranges that are now less relevant.\n\nThe goal is to filter noise and distill key information so context accumulation stays under control.\nKeep active context uncompressed.\n</dcp-system-reminder>\n";
+//# sourceMappingURL=turn-nudge.d.ts.map

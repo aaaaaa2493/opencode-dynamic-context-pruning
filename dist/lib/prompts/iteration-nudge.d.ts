@@ -1,0 +1,2 @@
+export declare const ITERATION_NUDGE = "<dcp-system-reminder>\nYou've been iterating for a while after the last user message.\n\nIf there is a closed portion that is unlikely to be referenced immediately (for example, finished research before implementation), use the compress tool on it now.\n</dcp-system-reminder>\n";
+//# sourceMappingURL=iteration-nudge.d.ts.map
