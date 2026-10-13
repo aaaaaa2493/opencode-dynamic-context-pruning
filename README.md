@@ -14,13 +14,49 @@ Automatically reduces token usage in OpenCode by managing conversation context.
 
 ## Installation
 
-Install from the OpenCode V2 CLI:
+The fork is distributed as a **prebuilt GitHub release package**. OpenCode installs
+it and its dependencies automatically. No local checkout or build is needed.
 
-```bash
-opencode plugin add @tarquinen/opencode-dcp@latest
+### OpenCode V1
+
+Replace the existing DCP entry in both `opencode.jsonc` and `tui.json` with:
+
+```jsonc
+{
+    "plugin": [
+        "https://github.com/aaaaaa2493/opencode-dynamic-context-pruning/releases/latest/download/opencode-dcp-hierarchical.tgz"
+    ]
+}
 ```
 
-This installs the package and adds it to your global OpenCode config.
+Preserve other plugin entries. Restart OpenCode after changing the configuration.
+
+### OpenCode V2
+
+```bash
+opencode plugin add https://github.com/aaaaaa2493/opencode-dynamic-context-pruning/releases/latest/download/opencode-dcp-hierarchical.tgz
+```
+
+Or add the package to your existing configuration:
+
+```jsonc
+{
+    "plugins": [
+        {
+            "package": "https://github.com/aaaaaa2493/opencode-dynamic-context-pruning/releases/latest/download/opencode-dcp-hierarchical.tgz"
+        }
+    ],
+    "permissions": [
+        { "action": "compress", "resource": "*", "effect": "allow" }
+    ]
+}
+```
+
+Use `compress.mode: "range"` for hierarchical compression. Existing `dcp.jsonc`
+settings still apply. Each successful master build publishes a package in
+[Releases](https://github.com/aaaaaa2493/opencode-dynamic-context-pruning/releases).
+Use a release-specific asset URL to pin a version. Local development/build
+instructions remain in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Project Status
 

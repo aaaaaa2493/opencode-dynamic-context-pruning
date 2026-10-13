@@ -5,6 +5,8 @@ bun.lock
 # Build output
 dist/
 *.tgz
+release/
+.package-test-*/
 
 # Logs
 *.log

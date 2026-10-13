@@ -118,7 +118,30 @@ because its public API has no part-update endpoint. Neither path creates a new
 user turn. Report parts/fallback text are stripped from subsequent model context;
 the host retains them for display. `toast` and `off` keep their existing behavior.
 
-## Build, verify and connect
+## Install on any computer
+
+Use the prebuilt package from GitHub Releases. OpenCode handles installation and
+dependencies; users do not need Git, a checkout, or a manual Node/npm build.
+
+For V1, replace the existing DCP entry in both `opencode.jsonc` and `tui.json`:
+
+```jsonc
+"plugin": [
+    "https://github.com/aaaaaa2493/opencode-dynamic-context-pruning/releases/latest/download/opencode-dcp-hierarchical.tgz"
+]
+```
+
+For V2, use the same URL as the `package` in `plugins`, or run `opencode plugin add`
+with that URL. See [README.md](README.md#installation) for complete examples.
+Preserve other plugins/settings and restart OpenCode. `compress.mode: "range"`
+selects hierarchical behavior; the existing `dcp.jsonc` configuration still applies.
+
+The Publish workflow builds, tests, verifies and packs every master update before
+publishing a GitHub release. The package has its own name,
+`@aaaaaa2493/opencode-dcp`. No npm registry login or package build is needed on
+consumer computers. A release-specific asset URL pins a particular build.
+
+## Local development and verification
 
 This fork uses upstream package entrypoints: `main` and server exports point to
 `dist/index.js`, unlike the old local-only source installation.
@@ -137,7 +160,7 @@ historical calls, reports and V1/V2 plugin registration. Tests use temporary
 config/storage and mocked hosts without live accounts. Node 24 can also run the
 TypeScript suites through `tests/register-typescript.mjs`.
 
-After building, replace only the existing DCP plugin entry with this checkout's
+For local development, after building replace only the existing DCP plugin entry with this checkout's
 absolute path. For the current V1 setup, use this entry in both
 `~/.config/opencode/opencode.jsonc` and `~/.config/opencode/tui.json`:
 

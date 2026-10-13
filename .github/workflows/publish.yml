@@ -1,4 +1,4 @@
-name: Publish
+name: Publish hierarchical package
 
 on:
     workflow_dispatch:
@@ -7,18 +7,16 @@ on:
             - master
 
 permissions:
-    contents: read
-    id-token: write
+    contents: write
 
 concurrency:
-    group: publish-${{ github.ref }}
+    group: hierarchical-release-${{ github.ref }}
     cancel-in-progress: false
 
 jobs:
-    npm:
-        name: Publish to npm
+    release:
+        name: Build, test and publish GitHub package
         runs-on: ubuntu-latest
-
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -26,42 +24,42 @@ jobs:
             - name: Setup Node.js
               uses: actions/setup-node@v4
               with:
-                  node-version: "22.x"
+                  node-version: "24.x"
                   cache: npm
-                  registry-url: https://registry.npmjs.org
-
-            - name: Check npm version
-              id: package
-              run: |
-                  NAME=$(node -p "require('./package.json').name")
-                  VERSION=$(node -p "require('./package.json').version")
-                  echo "name=${NAME}" >> "$GITHUB_OUTPUT"
-                  echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-
-                  if npm view "${NAME}@${VERSION}" version >/dev/null 2>&1; then
-                      echo "published=true" >> "$GITHUB_OUTPUT"
-                      echo "${NAME}@${VERSION} is already published."
-                  else
-                      echo "published=false" >> "$GITHUB_OUTPUT"
-                      echo "${NAME}@${VERSION} is not published yet."
-                  fi
 
             - name: Install dependencies
-              if: steps.package.outputs.published == 'false'
               run: npm ci --legacy-peer-deps
 
-            - name: Format check
-              if: steps.package.outputs.published == 'false'
-              run: npm run format:check
-
             - name: Type check
-              if: steps.package.outputs.published == 'false'
               run: npm run typecheck
 
             - name: Test
-              if: steps.package.outputs.published == 'false'
               run: npm test
 
-            - name: Publish
-              if: steps.package.outputs.published == 'false'
-              run: npx --yes --package npm@11 npm publish --access public --provenance
+            - name: Build and verify package
+              run: npm run check:package
+
+            - name: Pack installable distribution
+              run: |
+                  mkdir release
+                  npm pack --ignore-scripts --pack-destination release
+                  mv release/*.tgz release/opencode-dcp-hierarchical.tgz
+
+            - name: Test packed entrypoints
+              run: npm run test:package
+
+            - name: Publish release
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  TAG="hierarchical-${GITHUB_RUN_NUMBER}"
+                  ASSET="release/opencode-dcp-hierarchical.tgz"
+                  if gh release view "$TAG" >/dev/null 2>&1; then
+                      gh release upload "$TAG" "$ASSET" --clobber
+                  else
+                      gh release create "$TAG" "$ASSET" \
+                          --target "$GITHUB_SHA" \
+                          --title "Hierarchical DCP (${GITHUB_SHA:0:7})" \
+                          --notes "Prebuilt hierarchical plugin from master commit ${GITHUB_SHA}. See README.md for installation." \
+                          --latest
+                  fi
